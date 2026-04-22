@@ -317,32 +317,51 @@ select option{background:var(--bg)}
 <div class="view" id="view-driver-stops">
   <div class="alert al-g" id="stopsBanner"></div>
   <div id="stopsList"></div>
-  <div class="card" style="margin-top:4px">
-    <div class="ct">🏭 End of Day — Return to DC</div>
-
-    <!-- Pending returns — must all be scanned before end day -->
-    <div id="pendingReturnsWrap" style="display:none;margin-bottom:10px">
-      <div style="font-family:var(--fh);font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--red);margin-bottom:6px">
-        ⚠ BOXES STILL ON TRUCK — MUST SCAN ALL BEFORE ENDING DAY
+  <!-- DC stop — collapsed until tapped, just like store stops -->
+  <div class="stop-item" id="dcStopCard" style="margin-top:4px;border-left-color:var(--pur)">
+    <div class="stop-head">
+      <div>
+        <div class="stop-name">🏭 DC Johannesburg</div>
+        <div class="stop-detail" id="dcStopDetail">Return boxes to DC</div>
       </div>
-      <div id="pendingReturnsList"></div>
+      <div style="text-align:right">
+        <div class="stop-num" id="dcStopCtr" style="color:var(--pur)">—</div>
+        <span class="badge b-return" id="dcStopBadge">RETURN</span>
+      </div>
     </div>
+    <!-- Tap to open -->
+    <button class="btn bp" id="dcOpenBtn" onclick="openDCStop()"
+      style="margin-top:6px;background:var(--pur);color:#fff">🏭 SCAN IN AT DC</button>
 
-    <div id="allReturnsScanned" style="display:none;margin-bottom:10px">
-      <div class="alert al-g">✅ All return boxes scanned — you can end the day</div>
-    </div>
+    <!-- Scan area — hidden until opened -->
+    <div id="dcScanArea" style="display:none;margin-top:10px">
+      <div class="ctr" style="border-color:var(--pur)">
+        <div class="ctr-n" id="dcCtrN" style="color:var(--pur)">0 / 0</div>
+        <div class="ctr-l">SCANNED IN / EXPECTED</div>
+        <div class="ctr-bar"><div class="ctr-fill" id="dcCtrBar" style="width:0%;background:var(--pur)"></div></div>
+      </div>
 
-    <p style="font-size:.78rem;color:var(--mut);margin-bottom:10px">
-      Scan all boxes coming back to DC off the truck.
-    </p>
-    <div class="slabel">SCAN RETURN BOX</div>
-    <input class="sinput" id="returnInput" placeholder="Scan return box..." autocomplete="off" spellcheck="false" inputmode="text">
-    <button class="btn bo" onclick="openManualModal(function(c){if(c)procReturn(c)})" style="margin-top:6px">✏ ENTER BT NUMBER MANUALLY</button>
-    <div class="sr" id="returnSR"><div class="sr-lbl" id="returnLbl"></div><div class="sr-num" id="returnNum"></div><div class="sr-rsn" id="returnRsn"></div></div>
-    <div id="returnList" style="margin-top:8px"></div>
-    <button class="btn br" id="endDayBtn" onclick="endDayConfirm()" style="margin-top:8px;display:none">🔒 END DAY & RETURN TO DC</button>
-    <div id="endDayBlocked" style="margin-top:8px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.22);border-radius:6px;padding:10px 12px;font-size:.78rem;color:var(--red);display:none">
-      ⚠ Cannot end day — <span id="pendingCount">0</span> return box(es) still on truck. Scan them above first.
+      <!-- Pending returns list -->
+      <div id="pendingReturnsWrap" style="display:none;margin-bottom:8px">
+        <div style="font-family:var(--fh);font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--red);margin-bottom:6px">
+          ⚠ STILL TO SCAN IN AT DC
+        </div>
+        <div id="pendingReturnsList"></div>
+      </div>
+
+      <div class="slabel">SCAN RETURN BOX</div>
+      <input class="sinput" id="returnInput" placeholder="Scan return box..." autocomplete="off" spellcheck="false" inputmode="text">
+      <button class="btn bo" onclick="openManualModal(function(c){if(c)procReturn(c)})" style="margin-top:6px">✏ ENTER BT NUMBER MANUALLY</button>
+      <div class="sr" id="returnSR"><div class="sr-lbl" id="returnLbl"></div><div class="sr-num" id="returnNum"></div><div class="sr-rsn" id="returnRsn"></div></div>
+      <div id="returnList" style="margin-top:8px"></div>
+
+      <div id="allReturnsScanned" style="display:none;margin:8px 0">
+        <div class="alert al-g">✅ All boxes scanned in — ready to end day</div>
+      </div>
+      <div id="endDayBlocked" style="display:none;margin:8px 0;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.22);border-radius:6px;padding:10px 12px;font-size:.78rem;color:var(--red)">
+        ⚠ Cannot end day — <span id="pendingCount">0</span> box(es) still to scan in.
+      </div>
+      <button class="btn br" id="endDayBtn" onclick="endDayConfirm()" style="margin-top:8px;display:none">🔒 END DAY & LOG OFF</button>
     </div>
   </div>
 </div>
@@ -1214,6 +1233,14 @@ function setupScanInput(id, cb){
     }
   });
   el.addEventListener('input', () => {
+    // Hard 16-char limit — stops double-scan barcodes combining
+    if(el.value.length > 16) el.value = el.value.substring(0, 16);
+    // Submit immediately at 16 chars — barcode is complete
+    if(el.value.trim().length === 16){
+      const v = el.value.trim().toUpperCase();
+      if(el._scanCb){ el.value = ''; el._scanCb(v); setTimeout(()=>el.focus(),80); }
+      return;
+    }
     clearTimeout(el._st);
     el._st = setTimeout(()=>{
       const v = el.value.trim().toUpperCase();
@@ -1615,6 +1642,39 @@ function startRoute(){
 // ════════════════════════════════════════
 // DRIVER — STOPS LIST
 // ════════════════════════════════════════
+function openDCStop(){
+  document.getElementById('dcOpenBtn').style.display = 'none';
+  document.getElementById('dcScanArea').style.display = 'block';
+  setupScanInput('returnInput', procReturn);
+  renderReturnList();
+  renderPendingReturns();
+  setTimeout(()=>document.getElementById('returnInput')?.focus(), 200);
+}
+
+function updateDCStopCounter(){
+  const totalReturn = A.loadedBoxes.filter(lb => {
+    const tr = A.transfers.find(t => t.btNum===lb||t.barcode===lb);
+    return tr && tr.status==='return';
+  }).length;
+  const scanned = A.returnBoxes.length;
+  const ctr = document.getElementById('dcCtrN');
+  const bar = document.getElementById('dcCtrBar');
+  const detail = document.getElementById('dcStopDetail');
+  const badge = document.getElementById('dcStopBadge');
+  if(ctr) ctr.textContent = scanned + ' / ' + totalReturn;
+  if(bar) bar.style.width = totalReturn > 0 ? Math.min(100, scanned/totalReturn*100)+'%' : '0%';
+  if(detail) detail.textContent = totalReturn > 0
+    ? `${totalReturn} box${totalReturn!==1?'es':''} to return to DC`
+    : 'No returns — tap to confirm';
+  if(badge){
+    if(scanned >= totalReturn && totalReturn > 0){
+      badge.className='badge b-delivered'; badge.textContent='✅ DONE';
+    } else {
+      badge.className='badge b-return'; badge.textContent='RETURN';
+    }
+  }
+}
+
 function renderStops(){
   const el=document.getElementById('stopsList');
   const route=A.driverRoute;if(!route)return;
@@ -1641,9 +1701,8 @@ function renderStops(){
       ${total===0?'<div style="font-size:.72rem;color:var(--mut)">No boxes for this stop on current load</div>':''}
     </div>`;
   }).join('');
-  setupScanInput('returnInput',procReturn);
-  renderReturnList();
-  renderPendingReturns();
+  // Don't auto-setup returnInput here — only wire it when DC stop is opened
+  updateDCStopCounter();
 }
 
 // ════════════════════════════════════════
@@ -1658,49 +1717,25 @@ function startScanout(storeCode){
   if(p1) p1.style.display = 'block';
   if(p2) p2.style.display = 'none';
 
-  // Get ALL boxes for this store that are on the truck
-  // Status can be 'transit' OR 'loaded' — both mean on the truck
-  // Also match by resolving store codes so NM/01 both work
   const resolvedStop = resolveStoreCode(storeCode);
-  const boxesForStop = A.transfers.filter(t => {
-    const dest = resolveStoreCode(t.toStore || t.toLoc || '');
-    const onTruck = A.loadedBoxes.some(lb => lb === (t.btNum||t.barcode) || lb.startsWith((t.btNum||t.barcode)+'-DUP'));
-    const statusOk = ['transit','loaded'].includes(t.status);
-    return dest === resolvedStop && (onTruck || statusOk);
-  });
 
-  // Also count duplicate boxes in loadedBoxes for this store
-  // e.g. if BT123 was loaded 3 times (BT123, BT123-DUP1, BT123-DUP2)
-  // and all go to this store, expected = 3
-  let expectedCodes = [];
-  boxesForStop.forEach(t => {
-    const base = t.btNum || t.barcode;
-    // Count how many times this BT appears in loadedBoxes (including dups)
-    const allInstances = A.loadedBoxes.filter(lb => lb === base || lb.startsWith(base+'-DUP'));
-    allInstances.forEach(lb => {
-      if(!expectedCodes.includes(lb)) expectedCodes.push(lb);
-    });
-    // Also include the base code itself
-    if(!expectedCodes.includes(base)) expectedCodes.push(base);
+  // Build expected list directly from loadedBoxes — most reliable approach
+  // For each loaded box, check its destination using:
+  // 1. The transfer record's toStore (most reliable)
+  // 2. Fallback to parsing the BT number directly
+  A.stopExpected = A.loadedBoxes.filter(lb => {
+    const baseBT = lb.replace(/-DUP\d*$/, '');
+    // Check transfer record first
+    const tr = A.transfers.find(t => t.btNum === baseBT || t.barcode === baseBT);
+    if(tr){
+      const dest = resolveStoreCode(tr.toStore || tr.toLoc || '');
+      return dest === resolvedStop;
+    }
+    // Fall back to parsing BT number
+    const p = parseBT(baseBT);
+    if(p) return resolveStoreCode(p.to) === resolvedStop;
+    return false;
   });
-
-  // Remove duplicates and store as the expected list for this stop
-  A.stopExpected = [...new Set(expectedCodes)].filter(c => {
-    const tr = A.transfers.find(t => (t.btNum||t.barcode) === c || c.startsWith((t.btNum||t.barcode)));
-    if(!tr) return false;
-    const dest = resolveStoreCode(tr.toStore || tr.toLoc || '');
-    return dest === resolvedStop;
-  });
-
-  // If nothing found via transfers, fall back to loadedBoxes with matching BT destination
-  if(A.stopExpected.length === 0){
-    A.stopExpected = A.loadedBoxes.filter(lb => {
-      const baseBT = lb.replace(/-DUP\d*$/,'');
-      const p = parseBT(baseBT);
-      if(!p) return false;
-      return resolveStoreCode(p.to) === resolvedStop;
-    });
-  }
 
   document.getElementById('scanoutBanner').textContent =
     `📦 Delivering at: ${stName(storeCode)} — ${A.stopExpected.length} box${A.stopExpected.length!==1?'es':''} expected`;
@@ -1951,6 +1986,7 @@ function procReturn(code){
   showSR('returnSR','ok','SCANNED TO DC ✅','Box returned to DC',code);
   renderReturnList();
   renderPendingReturns();
+  updateDCStopCounter();
 }
 function getPendingReturns(){
   // Boxes that have status='return' and have NOT been scanned to DC yet
