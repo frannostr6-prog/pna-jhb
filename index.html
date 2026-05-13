@@ -3465,7 +3465,7 @@ function renderStoreView(){
   // Base entries only (no DUPs) for display grouping
   const all = allWithDups.filter(t=>!t.btNum?.includes('-DUP'));
   const todayAll  = allWithDups.filter(t=>{
-    if(t.btNum?.includes('-DUP')) return false;
+    if(t.btNum?.endsWith('-NA')) return false;
     const rawDate = t.loadedAt||t.dispatchedAt||t.createdAt||'';
     if(!rawDate) return false;
     const d = new Date(rawDate);
@@ -3716,17 +3716,21 @@ function printStoreReport(){
 function renderDash(){
   // ── Filter to TODAY only ──
   const todayStr = new Date().toISOString().slice(0,10);
+  // Include DUPs — each DUP is a physical box
   const todayAll = A.transfers.filter(t => {
-    if(t.btNum?.includes('-DUP')) return false;
+    if(t.btNum?.endsWith('-NA')) return false; // exclude old junk only
     const date = (t.loadedAt||t.dispatchedAt||'').slice(0,10);
     return date === todayStr;
   });
+  // For driverMap display, use base BTs only to avoid double-listing
+  const todayBase = todayAll.filter(t=>!t.btNum?.includes('-DUP'));
 
   // Date banner
   const banner = document.getElementById('dashDateBanner');
   if(banner) banner.textContent = '📅 TODAY: ' + new Date().toLocaleDateString('en-ZA',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
   // Stats
+  // Stats count ALL physical boxes including DUPs
   document.getElementById('mgTotal').textContent     = todayAll.length;
   document.getElementById('mgTransit').textContent   = todayAll.filter(t=>['transit','loaded'].includes(t.status)).length;
   document.getElementById('mgDelivered').textContent = todayAll.filter(t=>t.status==='delivered').length;
